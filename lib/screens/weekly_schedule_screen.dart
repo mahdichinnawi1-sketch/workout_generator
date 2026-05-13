@@ -1,12 +1,69 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:math';  // ADD THIS LINE for max() function
-import 'package:workout_interval_app/models/weekly_workout.dart';
-import 'package:workout_interval_app/models/workout_plan.dart';
-import 'package:workout_interval_app/utils/constants.dart';
-import 'package:workout_interval_app/utils/workout_generator.dart';
-import 'package:workout_interval_app/screens/workout_screen.dart';
-import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/api_service.dart';
+import 'workout_screen.dart';
+
+// WeeklyWorkout class
+class WeeklyWorkout {
+  final String day;
+  String workoutType;
+  bool isRestDay;
+  bool isCompleted;
+
+  WeeklyWorkout({
+    required this.day,
+    required this.workoutType,
+    required this.isRestDay,
+    this.isCompleted = false,
+  });
+}
+
+// Exercise class for workout generation
+class ScheduleExercise {
+  final String name;
+  final String icon;
+  final String description;
+  final String targetMuscle;
+  final String location;
+  final int caloriesPerMinute;
+
+  ScheduleExercise({
+    required this.name,
+    required this.icon,
+    required this.description,
+    required this.targetMuscle,
+    required this.location,
+    required this.caloriesPerMinute,
+  });
+}
+
+// WorkoutPlan class for the schedule screen
+class ScheduleWorkoutPlan {
+  final String goal;
+  final String location;
+  final int targetCalories;
+  final int durationMinutes;
+  final int workSeconds;
+  final int restSeconds;
+  final int estimatedCalories;
+  final List<ScheduleExercise> exercises;
+  final String intensity;
+  final int userId;
+
+  ScheduleWorkoutPlan({
+    required this.goal,
+    required this.location,
+    required this.targetCalories,
+    required this.durationMinutes,
+    required this.workSeconds,
+    required this.restSeconds,
+    required this.estimatedCalories,
+    required this.exercises,
+    required this.intensity,
+    required this.userId,
+  });
+}
 
 class WeeklyScheduleScreen extends StatefulWidget {
   const WeeklyScheduleScreen({super.key});
@@ -21,16 +78,29 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
   String selectedLocation = '🏠 Home';
   int targetCalories = 300;
   bool isGenerating = false;
+  int _userId = 0;
+  
+  final List<String> workoutTypes = ['🔥 Weight Loss', '⚡ Endurance', '💪 Muscle Building'];
+  final List<String> locations = ['🏠 Home', '🏋️ Gym'];
+  final List<String> days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   @override
   void initState() {
     super.initState();
+    _loadUserId();
     _initializeEmptySchedule();
+  }
+
+  Future<void> _loadUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userId = prefs.getInt('user_id') ?? 0;
+    });
   }
 
   void _initializeEmptySchedule() {
     weeklySchedule = [];
-    for (var day in AppConstants.days) {
+    for (var day in days) {
       weeklySchedule.add(WeeklyWorkout(
         day: day,
         workoutType: '🔥 Weight Loss',
@@ -44,9 +114,10 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
       isGenerating = true;
     });
 
+    // Simulate generation delay
     Future.delayed(const Duration(milliseconds: 800), () {
       setState(() {
-        for (int i = 0; i < AppConstants.days.length; i++) {
+        for (int i = 0; i < days.length; i++) {
           String workoutType;
           
           if (selectedWorkoutType == '🔥 Weight Loss') {
@@ -75,10 +146,10 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
             }
           }
           
-          bool isRestDay = (i == 2 || i == 6);
+          bool isRestDay = (i == 2 || i == 6); // Wednesday and Sunday
           
           weeklySchedule[i] = WeeklyWorkout(
-            day: AppConstants.days[i],
+            day: days[i],
             workoutType: workoutType,
             isRestDay: isRestDay,
             isCompleted: false,
@@ -142,9 +213,108 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
     );
   }
 
-  void startWorkoutFromDay(int index, String selectedLocationParam) {
-    final schedule = weeklySchedule[index];
-    final goal = schedule.workoutType;
+  // Get exercises based on goal and location
+  List<ScheduleExercise> getExercisesByGoal(String goal, String location, int durationMinutes) {
+    List<ScheduleExercise> exercises = [];
+    String baseGoal = goal.replaceAll('🔥 ', '').replaceAll('⚡ ', '').replaceAll('💪 ', '');
+    
+    Map<String, List<Map<String, dynamic>>> exerciseLibrary = {
+      'Weight Loss': [
+        {'name': 'Jumping Jacks', 'icon': '🤸', 'desc': 'Full body cardio', 'muscle': 'Full Body', 'location': 'home', 'calories': 10},
+        {'name': 'Burpees', 'icon': '🏃‍♂️', 'desc': 'Explosive full body', 'muscle': 'Full Body', 'location': 'both', 'calories': 12},
+        {'name': 'High Knees', 'icon': '🏃', 'desc': 'Cardio & core', 'muscle': 'Legs', 'location': 'home', 'calories': 9},
+        {'name': 'Mountain Climbers', 'icon': '🧗', 'desc': 'Core & cardio', 'muscle': 'Core', 'location': 'home', 'calories': 10},
+      ],
+      'Endurance': [
+        {'name': 'Bodyweight Squats', 'icon': '🦵', 'desc': 'Leg endurance', 'muscle': 'Legs', 'location': 'home', 'calories': 7},
+        {'name': 'Walking Lunges', 'icon': '🚶', 'desc': 'Balance & stamina', 'muscle': 'Legs', 'location': 'home', 'calories': 8},
+        {'name': 'Push-ups', 'icon': '💪', 'desc': 'Upper body endurance', 'muscle': 'Chest', 'location': 'home', 'calories': 8},
+        {'name': 'Plank Hold', 'icon': '⭐', 'desc': 'Core stability', 'muscle': 'Core', 'location': 'home', 'calories': 6},
+      ],
+      'Muscle Building': [
+        {'name': 'Push-ups', 'icon': '💪', 'desc': 'Chest & triceps', 'muscle': 'Chest', 'location': 'home', 'calories': 7},
+        {'name': 'Squats', 'icon': '🦵', 'desc': 'Leg strength', 'muscle': 'Legs', 'location': 'home', 'calories': 7},
+        {'name': 'Lunges', 'icon': '🚶', 'desc': 'Leg strength', 'muscle': 'Legs', 'location': 'home', 'calories': 7},
+      ],
+    };
+    
+    List<Map<String, dynamic>>? tempExercises = exerciseLibrary[baseGoal];
+    List<Map<String, dynamic>> allExercises = tempExercises ?? exerciseLibrary['Weight Loss']!;
+    
+    List<Map<String, dynamic>> filteredExercises = allExercises.where((ex) {
+      if (location == '🏠 Home') {
+        return ex['location'] == 'home' || ex['location'] == 'both';
+      } else {
+        return ex['location'] == 'gym' || ex['location'] == 'both';
+      }
+    }).toList();
+    
+    int exerciseCount = (durationMinutes / 5).ceil().clamp(3, 8);
+    
+    for (int i = 0; i < exerciseCount; i++) {
+      var ex = filteredExercises[i % filteredExercises.length];
+      exercises.add(ScheduleExercise(
+        name: ex['name']!,
+        icon: ex['icon']!,
+        description: ex['desc']!,
+        targetMuscle: ex['muscle']!,
+        location: ex['location']!,
+        caloriesPerMinute: ex['calories']!,
+      ));
+    }
+    
+    return exercises;
+  }
+
+  // Calculate workout config
+  Map<String, dynamic> getWorkoutConfig(String goal, String location) {
+    int workSec = 40;
+    int restSec = 20;
+    String intensity = 'High';
+    
+    if (goal == '🔥 Weight Loss') {
+      workSec = 45;
+      restSec = 15;
+      intensity = 'High';
+    } else if (goal == '⚡ Endurance') {
+      workSec = 60;
+      restSec = 15;
+      intensity = 'Moderate';
+    } else if (goal == '💪 Muscle Building') {
+      workSec = 35;
+      restSec = 45;
+      intensity = 'High';
+    }
+    
+    if (location == '🏋️ Gym') {
+      workSec = (workSec * 1.1).round();
+    }
+    
+    workSec = workSec.clamp(20, 90);
+    restSec = restSec.clamp(10, 60);
+    
+    return {
+      'work': workSec,
+      'rest': restSec,
+      'intensity': intensity,
+    };
+  }
+
+  // Calculate calories
+  int calculateCalories(String goal, String location, int duration) {
+    double intensityMultiplier;
+    if (goal == '🔥 Weight Loss') intensityMultiplier = 9.5;
+    else if (goal == '⚡ Endurance') intensityMultiplier = 8.0;
+    else intensityMultiplier = 6.5;
+    
+    if (location == '🏋️ Gym') intensityMultiplier *= 1.2;
+    
+    return (duration * intensityMultiplier).round();
+  }
+
+  void startWorkoutForDay(WeeklyWorkout schedule) {
+    String goal = schedule.workoutType;
+    String locationParam = selectedLocation;
     
     double caloriesPerMinute;
     if (goal == '🔥 Weight Loss') {
@@ -156,41 +326,33 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
     }
     
     int calculatedDuration = (targetCalories / caloriesPerMinute).ceil().clamp(10, 90);
-    int finalDuration = max(30, calculatedDuration);
+    int finalDuration = 30 > calculatedDuration ? 30 : calculatedDuration;
     
-    int workSec = 40;
-    int restSec = 20;
-    String intensity = 'High';
+    final config = getWorkoutConfig(goal, locationParam);
+    final int workTime = config['work'] as int;
+    final int restTime = config['rest'] as int;
+    final String intensity = config['intensity'] as String;
     
-    if (goal == '🔥 Weight Loss') {
-      workSec = 45;
-      restSec = 15;
-    } else if (goal == '⚡ Endurance') {
-      workSec = 60;
-      restSec = 15;
-    } else if (goal == '💪 Muscle Building') {
-      workSec = 35;
-      restSec = 45;
-    }
+    final exercises = getExercisesByGoal(goal, locationParam, finalDuration);
+    final actualCalories = calculateCalories(goal, locationParam, finalDuration);
     
-    List<Exercise> exercises = WorkoutGenerator.getExercisesByGoal(goal, selectedLocationParam, finalDuration);
-    
-    final workoutPlan = WorkoutPlan(
+    final workoutPlan = ScheduleWorkoutPlan(
       goal: goal,
-      location: selectedLocationParam,
+      location: locationParam,
       targetCalories: targetCalories,
       durationMinutes: finalDuration,
-      workSeconds: workSec,
-      restSeconds: restSec,
-      estimatedCalories: (finalDuration * caloriesPerMinute).round(),
+      workSeconds: workTime,
+      restSeconds: restTime,
+      estimatedCalories: actualCalories,
       exercises: exercises,
       intensity: intensity,
+      userId: _userId,
     );
     
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => WorkoutScreen(workoutPlan: workoutPlan),
+        builder: (context) => WorkoutScreen(workoutPlan: workoutPlan as dynamic),
       ),
     );
   }
@@ -208,6 +370,7 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
         children: [
           const SizedBox(height: 20),
           
+          // Header
           Center(
             child: Column(
               children: [
@@ -280,6 +443,7 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
                 ),
                 const SizedBox(height: 12),
                 
+                // Focus Area Selection
                 const Text(
                   'Focus Area:',
                   style: TextStyle(fontSize: 12, color: Colors.white70),
@@ -287,7 +451,7 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
-                  children: AppConstants.workoutTypes.map((type) {
+                  children: workoutTypes.map((type) {
                     bool isSelected = selectedWorkoutType == type;
                     return FilterChip(
                       selected: isSelected,
@@ -311,6 +475,7 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
                 
                 const SizedBox(height: 12),
                 
+                // Location Selection
                 const Text(
                   'Workout Location:',
                   style: TextStyle(fontSize: 12, color: Colors.white70),
@@ -318,7 +483,7 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
-                  children: AppConstants.locations.map((location) {
+                  children: locations.map((location) {
                     bool isSelected = selectedLocation == location;
                     return FilterChip(
                       selected: isSelected,
@@ -342,6 +507,53 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
                 
                 const SizedBox(height: 12),
                 
+                // Calories Target
+                const Text(
+                  'Daily Calories Target:',
+                  style: TextStyle(fontSize: 12, color: Colors.white70),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          if (targetCalories > 100) targetCalories -= 50;
+                        });
+                      },
+                      icon: const Icon(Icons.remove, color: Colors.white, size: 20),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.grey[800],
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '$targetCalories',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          if (targetCalories < 1000) targetCalories += 50;
+                        });
+                      },
+                      icon: const Icon(Icons.add, color: Colors.white, size: 20),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.grey[800],
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 12),
+                
+                // Generate and Reset Buttons
                 Row(
                   children: [
                     Expanded(
@@ -357,7 +569,7 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
                                 ),
                               )
                             : const Icon(Icons.auto_awesome),
-                        label: Text(isGenerating ? 'GENERATING...' : 'GENERATE WEEKLY PLAN'),
+                        label: Text(isGenerating ? 'GENERATING...' : 'GENERATE PLAN'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColor,
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -452,7 +664,7 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: AppConstants.days.length,
+            itemCount: days.length,
             itemBuilder: (context, index) {
               final schedule = weeklySchedule[index];
               return Container(
@@ -533,6 +745,7 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Rest Day Toggle
                           Row(
                             children: [
                               const Text(
@@ -562,7 +775,7 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
                             const SizedBox(height: 8),
                             Wrap(
                               spacing: 8,
-                              children: AppConstants.workoutTypes.map((type) {
+                              children: workoutTypes.map((type) {
                                 bool isSelected = schedule.workoutType == type;
                                 return FilterChip(
                                   selected: isSelected,
@@ -586,10 +799,11 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
                             ),
                             const SizedBox(height: 16),
                             
+                            // Start Workout Button
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
-                                onPressed: () => startWorkoutFromDay(index, selectedLocation),
+                                onPressed: () => startWorkoutForDay(schedule),
                                 icon: const Icon(Icons.play_arrow),
                                 label: const Text('START WORKOUT'),
                                 style: ElevatedButton.styleFrom(
@@ -604,6 +818,7 @@ class _WeeklyScheduleScreenState extends State<WeeklyScheduleScreen> {
                           
                           const SizedBox(height: 16),
                           
+                          // Tips
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(

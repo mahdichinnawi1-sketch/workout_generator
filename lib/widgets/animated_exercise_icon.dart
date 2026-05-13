@@ -29,7 +29,6 @@ class _AnimatedExerciseIconState extends State<AnimatedExerciseIcon>
   @override
   void initState() {
     super.initState();
-    
     _controller = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
