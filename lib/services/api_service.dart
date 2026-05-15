@@ -3,14 +3,21 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // FOR CHROME TESTING - Backend running locally
-  static const String baseUrl = 'http://localhost:3000/api';
+  // =====================================================
+  // IMPORTANT: Change this based on where you're running
+  // =====================================================
   
-  // FOR ANDROID EMULATOR (uncomment if needed)
-  // static const String baseUrl = 'http://10.0.2.2:3000/api';
+  // FOR LOCAL DEVELOPMENT (Backend on your computer)
+  static const String localBaseUrl = 'http://localhost:3000/api';
   
-  // FOR PRODUCTION (uncomment when deployed)
-  // static const String baseUrl = 'https://your-backend.onrender.com/api';
+  // FOR PRODUCTION (After deploying to Render)
+  // Replace with your actual Render URL after deployment
+  static const String productionBaseUrl = 'https://YOUR-APP-NAME.onrender.com/api';
+  
+  // Set this to false when deploying to production
+  static const bool isDevelopment = true;  // Change to false for production
+  
+  static String get baseUrl => isDevelopment ? localBaseUrl : productionBaseUrl;
 
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -24,62 +31,6 @@ class ApiService {
       'x-auth-token': token ?? '',
     };
   }
-
-
-
-// ==================== AI RECOMMENDATION ENDPOINTS ====================
-
-static Future<Map<String, dynamic>> getAIWorkoutRecommendation({
-  required String goal,
-  String? injury,
-  required int timeMinutes,
-  String? equipment,
-  String? experienceLevel,
-}) async {
-  try {
-    final response = await http.post(
-      Uri.parse('$baseUrl/ai/recommend-workout'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        'goal': goal,
-        'injury': injury,
-        'timeMinutes': timeMinutes,
-        'equipment': equipment,
-        'experienceLevel': experienceLevel,
-      }),
-    );
-    return json.decode(response.body);
-  } catch (e) {
-    print('AI API error: $e');
-    return {'success': false, 'error': e.toString()};
-  }
-}
-
-static Future<Map<String, dynamic>> getAIMealRecommendation({
-  required String goal,
-  String? dietaryPreference,
-  String? allergies,
-  int? calorieTarget,
-}) async {
-  try {
-    final response = await http.post(
-      Uri.parse('$baseUrl/ai/recommend-meal'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        'goal': goal,
-        'dietaryPreference': dietaryPreference,
-        'allergies': allergies,
-        'calorieTarget': calorieTarget,
-      }),
-    );
-    return json.decode(response.body);
-  } catch (e) {
-    print('AI Meal API error: $e');
-    return {'success': false, 'error': e.toString()};
-  }
-}
-
-
 
   // ==================== AUTH ENDPOINTS ====================
 
@@ -380,13 +331,79 @@ static Future<Map<String, dynamic>> getAIMealRecommendation({
       );
       return json.decode(response.body);
     } catch (e) {
-      // Return default suggestions if API fails
       return {
         'breakfast': ['Oatmeal', 'Eggs', 'Greek Yogurt'],
         'lunch': ['Grilled Chicken Salad', 'Turkey Sandwich', 'Quinoa Bowl'],
         'dinner': ['Salmon with Rice', 'Chicken Stir-fry', 'Lean Beef with Vegetables'],
         'snacks': ['Apple', 'Protein Shake', 'Nuts']
       };
+    }
+  }
+
+  // ==================== AI RECOMMENDATION ENDPOINTS ====================
+
+  static Future<Map<String, dynamic>> getAIWorkoutRecommendation({
+    required String goal,
+    String? injury,
+    required int timeMinutes,
+    String? equipment,
+    String? experienceLevel,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/ai/recommend-workout'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'goal': goal,
+          'injury': injury,
+          'timeMinutes': timeMinutes,
+          'equipment': equipment,
+          'experienceLevel': experienceLevel,
+        }),
+      );
+      return json.decode(response.body);
+    } catch (e) {
+      print('AI API error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  // ==================== SCHEDULE ENDPOINTS ====================
+
+  static Future<List<dynamic>> getWeeklySchedule(int userId) async {
+    try {
+      final headers = await getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/schedule/$userId'),
+        headers: headers,
+      );
+      return json.decode(response.body);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateScheduleDay({
+    required int userId,
+    required String day,
+    required String workoutType,
+    required bool isRestDay,
+    required bool isCompleted,
+  }) async {
+    try {
+      final headers = await getHeaders();
+      final response = await http.put(
+        Uri.parse('$baseUrl/schedule/$userId/$day'),
+        headers: headers,
+        body: json.encode({
+          'workout_type': workoutType,
+          'is_rest_day': isRestDay,
+          'is_completed': isCompleted,
+        }),
+      );
+      return json.decode(response.body);
+    } catch (e) {
+      return {'error': 'Network error: $e'};
     }
   }
 }
