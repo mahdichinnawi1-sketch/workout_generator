@@ -4,20 +4,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   // =====================================================
-  // IMPORTANT: Change this based on where you're running
+  // LIVE BACKEND URL (ONLINE)
   // =====================================================
+  static const String baseUrl = 'https://workout-generator-nkgb.onrender.com/api';
   
-  // FOR LOCAL DEVELOPMENT (Backend on your computer)
-  static const String localBaseUrl = 'http://localhost:3000/api';
-  
-  // FOR PRODUCTION (After deploying to Render)
-  // Replace with your actual Render URL after deployment
-  static const String productionBaseUrl = 'https://mahdichinnawi1-sketch.github.io/workout_generator';
-  
-  // Set this to false when deploying to production
-  static const bool isDevelopment = true;  // Change to false for production
-  
-  static String get baseUrl => isDevelopment ? localBaseUrl : productionBaseUrl;
+  // FOR LOCAL DEVELOPMENT (uncomment when testing locally)
+  // static const String baseUrl = 'http://localhost:3000/api';
 
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
